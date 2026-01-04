@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "bridge": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/path/to/agent-bridge/mcp_server.py"]
+    }
+  }
+}
