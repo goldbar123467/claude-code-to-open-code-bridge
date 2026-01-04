@@ -7,7 +7,7 @@ import sqlite3
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 import hashlib
@@ -77,7 +77,7 @@ def register_agent(name: str, program: str = "unknown", model: str = "unknown", 
             model = excluded.model,
             task = excluded.task,
             last_seen = excluded.last_seen
-    """, (name, program, model, task, datetime.utcnow().isoformat()))
+    """, (name, program, model, task, datetime.now(timezone.utc).isoformat()))
     conn.commit()
     return {"status": "registered", "name": name}
 
@@ -120,7 +120,7 @@ def mark_read(message_id: int, agent: str) -> dict:
     conn = get_db()
     conn.execute("""
         UPDATE messages SET read_at = ? WHERE id = ? AND recipient = ?
-    """, (datetime.utcnow().isoformat(), message_id, agent))
+    """, (datetime.now(timezone.utc).isoformat(), message_id, agent))
     conn.commit()
     return {"status": "read", "id": message_id}
 
@@ -131,7 +131,7 @@ def ack_message(message_id: int, agent: str) -> dict:
     conn.execute("""
         UPDATE messages SET ack_at = ?, read_at = COALESCE(read_at, ?)
         WHERE id = ? AND recipient = ?
-    """, (datetime.utcnow().isoformat(), datetime.utcnow().isoformat(), message_id, agent))
+    """, (datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat(), message_id, agent))
     conn.commit()
     return {"status": "acknowledged", "id": message_id}
 
@@ -143,13 +143,13 @@ def ack_message(message_id: int, agent: str) -> dict:
 def lock_file(path: str, agent: str, reason: str = "", ttl_seconds: int = 1800) -> dict:
     """Lock a file for exclusive editing."""
     conn = get_db()
-    expires = datetime.utcnow().timestamp() + ttl_seconds
+    expires = datetime.now(timezone.utc).timestamp() + ttl_seconds
     expires_str = datetime.fromtimestamp(expires).isoformat()
 
     # Check for existing lock
     existing = conn.execute(
         "SELECT * FROM file_locks WHERE path = ? AND expires_at > ?",
-        (path, datetime.utcnow().isoformat())
+        (path, datetime.now(timezone.utc).isoformat())
     ).fetchone()
 
     if existing and existing["agent"] != agent:
@@ -178,7 +178,7 @@ def unlock_file(path: str, agent: str) -> dict:
 def list_locks(agent: str = None) -> list:
     """List active file locks."""
     conn = get_db()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     if agent:
         rows = conn.execute(
             "SELECT * FROM file_locks WHERE agent = ? AND expires_at > ?",

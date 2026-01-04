@@ -1,168 +1,277 @@
-# Agent Bridge
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/dependencies-zero-brightgreen?style=for-the-badge" alt="Zero Dependencies">
+  <img src="https://img.shields.io/badge/lines-~250-orange?style=for-the-badge" alt="~250 Lines">
+  <img src="https://img.shields.io/github/license/goldbar123467/claude-code-to-open-code-bridge?style=for-the-badge" alt="MIT License">
+</p>
 
-**Minimal coordination for Claude Code + OpenCode**
+<h1 align="center">🌉 Agent Bridge</h1>
 
-Zero dependencies. Just Python stdlib + SQLite. ~200 lines of code.
+<p align="center">
+  <strong>Minimal coordination between Claude Code and OpenCode</strong><br>
+  Zero dependencies. Just Python. ~250 lines.
+</p>
 
-## What It Does
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#api">API</a> •
+  <a href="#why">Why Agent Bridge?</a>
+</p>
 
-```
-┌─────────────────┐                      ┌─────────────────┐
-│   Claude Code   │◄──── messages ──────►│    OpenCode     │
-│                 │      file locks      │                 │
-│                 │      memory          │                 │
-└────────┬────────┘                      └────────┬────────┘
-         │                                        │
-         └───────────► SQLite DB ◄───────────────┘
-                    ~/.agent-bridge/bridge.db
-```
+---
 
-## Features
-
-- **Messaging**: Send/receive messages between agents
-- **File Locks**: Prevent edit conflicts with TTL-based locks
-- **Memory**: Simple key-value store for shared context
-- **Agent Registry**: Track active agents
-
-## Installation
+## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/agent-bridge
-cd agent-bridge
+curl -sL https://raw.githubusercontent.com/goldbar123467/claude-code-to-open-code-bridge/main/install.sh | bash
 ```
 
-No `pip install` needed. It's just Python.
+Or manually:
 
-## Usage
+```bash
+git clone https://github.com/goldbar123467/claude-code-to-open-code-bridge ~/.agent-bridge
+```
 
-### Add to Claude Code (~/.claude.json)
+Then add to your config:
+
+<details>
+<summary><b>Claude Code</b> (~/.claude.json)</summary>
 
 ```json
 {
   "mcpServers": {
     "bridge": {
       "command": "python3",
-      "args": ["/path/to/agent-bridge/mcp_server.py"]
+      "args": ["~/.agent-bridge/mcp_server.py"]
     }
   }
 }
 ```
+</details>
 
-### Add to OpenCode (~/.config/opencode/config.json)
+<details>
+<summary><b>OpenCode</b> (~/.config/opencode/config.json)</summary>
 
 ```json
 {
   "mcp": {
     "bridge": {
       "command": "python3",
-      "args": ["/path/to/agent-bridge/mcp_server.py"]
+      "args": ["~/.agent-bridge/mcp_server.py"]
     }
   }
 }
 ```
+</details>
 
-### CLI Testing
+---
 
-```bash
-# Register an agent
-python bridge.py register claude-1
+## How It Works
 
-# Send a message
-python bridge.py send claude-1 opencode-1 "[TASK] Build login page" "Use React + Tailwind"
-
-# Check inbox
-python bridge.py inbox opencode-1
-
-# Lock a file
-python bridge.py lock src/auth.ts opencode-1
-
-# List locks
-python bridge.py locks
-
-# Store a memory
-python bridge.py remember "Use JWT for auth tokens"
-
-# Search memories
-python bridge.py recall "auth"
+```
+┌─────────────────┐                        ┌─────────────────┐
+│   Claude Code   │◄───── messages ───────►│    OpenCode     │
+│    (Opus 4)     │       file locks       │   (DeepSeek)    │
+│                 │       memory           │                 │
+└────────┬────────┘                        └────────┬────────┘
+         │                                          │
+         └─────────────► SQLite ◄──────────────────┘
+                    ~/.agent-bridge/bridge.db
 ```
 
-## MCP Tools
+Both agents connect to the same lightweight SQLite database. No servers. No Docker. No configuration hell.
+
+---
+
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| 📨 **Messaging** | Send tasks, receive completions, coordinate work |
+| 🔒 **File Locks** | Prevent edit conflicts with TTL-based locks |
+| 🧠 **Shared Memory** | Key-value store for context across sessions |
+| 👥 **Agent Registry** | Track active agents and their status |
+
+---
+
+## Usage
+
+### In Claude Code or OpenCode
+
+```
+You: Register me as the coordinator
+AI: [calls bridge.register with name="coordinator"]
+
+You: Send a task to the worker agent
+AI: [calls bridge.send with recipient="worker", subject="[TASK] Build auth"]
+
+You: Check if worker is done
+AI: [calls bridge.inbox to check for [DONE] messages]
+```
+
+### CLI
+
+```bash
+# Register agents
+python3 bridge.py register coordinator
+python3 bridge.py register worker
+
+# Send a task
+python3 bridge.py send coordinator worker "[TASK] Build login page"
+
+# Check inbox
+python3 bridge.py inbox worker
+
+# Lock a file before editing
+python3 bridge.py lock src/auth.ts worker
+
+# Release when done
+python3 bridge.py unlock src/auth.ts worker
+
+# Store shared context
+python3 bridge.py remember "Use JWT tokens for auth"
+
+# Recall context
+python3 bridge.py recall "auth"
+```
+
+---
+
+## API
+
+### Agent Management
 
 | Tool | Description |
 |------|-------------|
-| `register` | Register agent with bridge |
-| `agents` | List all registered agents |
+| `register` | Register agent with the bridge |
+| `agents` | List all active agents |
+
+### Messaging
+
+| Tool | Description |
+|------|-------------|
 | `send` | Send message to another agent |
-| `inbox` | Fetch messages |
+| `inbox` | Fetch messages for an agent |
 | `mark_read` | Mark message as read |
-| `ack` | Acknowledge message |
-| `lock` | Lock file for editing |
+| `ack` | Acknowledge receipt |
+
+### File Coordination
+
+| Tool | Description |
+|------|-------------|
+| `lock` | Lock file for exclusive editing |
 | `unlock` | Release file lock |
-| `locks` | List active locks |
-| `remember` | Store a memory |
-| `recall` | Search memories |
+| `locks` | List all active locks |
+
+### Memory
+
+| Tool | Description |
+|------|-------------|
+| `remember` | Store a note/decision |
+| `recall` | Search stored memories |
 | `forget` | Delete a memory |
 
-## Workflow Example
-
-**Claude Code (coordinator):**
-```
-1. register(name="claude-1", program="claude-code", model="opus")
-2. send(sender="claude-1", recipient="opencode-1", subject="[TASK] Build auth", body="...")
-3. inbox(agent="claude-1")  # Check for [DONE] messages
-```
-
-**OpenCode (worker):**
-```
-1. register(name="opencode-1", program="opencode", model="deepseek")
-2. inbox(agent="opencode-1")  # Get tasks
-3. lock(path="src/auth.ts", agent="opencode-1")
-4. ... do work ...
-5. unlock(path="src/auth.ts", agent="opencode-1")
-6. send(sender="opencode-1", recipient="claude-1", subject="[DONE] Auth complete", body="...")
-```
+---
 
 ## Message Conventions
 
-Use subject prefixes:
-- `[TASK]` - New task assignment
-- `[DONE]` - Task completed
-- `[BLOCKED]` - Need help/stuck
-- `[QUESTION]` - Clarification needed
-- `[HANDOFF]` - Passing work to another agent
+Use subject prefixes for clear communication:
+
+| Prefix | Meaning |
+|--------|---------|
+| `[TASK]` | New task assignment |
+| `[DONE]` | Task completed |
+| `[BLOCKED]` | Need help, stuck |
+| `[QUESTION]` | Clarification needed |
+| `[HANDOFF]` | Passing to another agent |
+
+---
+
+## Example Workflow
+
+**Terminal 1 — Claude Code (Coordinator)**
+```
+> Register as coordinator, model opus-4
+> Send task to worker: "Build user authentication with JWT"
+> Wait for worker to complete, then review
+```
+
+**Terminal 2 — OpenCode (Worker)**
+```
+> Register as worker, model deepseek
+> Check inbox for tasks
+> Lock src/auth/* files
+> Implement authentication
+> Unlock files, send [DONE] to coordinator
+```
+
+---
+
+## Why Agent Bridge?
+
+| | Agent Bridge | MCP Agent Mail | Custom Solution |
+|---|:---:|:---:|:---:|
+| Lines of code | **~250** | ~10,000+ | Varies |
+| Dependencies | **0** | PostgreSQL, Redis, etc. | Many |
+| Setup time | **30 seconds** | 10+ minutes | Hours |
+| Docker required | **No** | Yes | Usually |
+| Learning curve | **Minimal** | Moderate | High |
+
+**Agent Bridge is for developers who want coordination without complexity.**
+
+---
 
 ## File Structure
 
 ```
 agent-bridge/
-├── bridge.py       # Core logic (~150 lines)
-├── mcp_server.py   # MCP wrapper (~100 lines)
-├── pyproject.toml  # Package metadata
-└── README.md       # This file
+├── bridge.py        # Core logic (278 lines)
+├── mcp_server.py    # MCP protocol wrapper (281 lines)
+├── install.sh       # One-line installer
+├── pyproject.toml   # Package metadata
+└── examples/
+    ├── claude-code.json
+    └── opencode.json
 ```
+
+---
+
+## Requirements
+
+- Python 3.10+
+- That's it. No pip install. No npm. No Docker.
+
+---
 
 ## Database
 
-SQLite at `~/.agent-bridge/bridge.db`
+SQLite database at `~/.agent-bridge/bridge.db`
 
-Tables:
-- `agents` - Registered agents
-- `messages` - Message queue
-- `file_locks` - Active file locks
-- `memory` - Shared memories
+**Tables:**
+- `agents` — Registered agents
+- `messages` — Message queue
+- `file_locks` — Active file locks
+- `memory` — Shared memories
 
-## Why Not MCP Agent Mail?
+---
 
-MCP Agent Mail is great but heavy (~10k lines, PostgreSQL, Git storage, LLM integration).
+## Contributing
 
-Agent Bridge is:
-- ~250 lines total
-- Zero dependencies
-- SQLite only
-- Copy-paste simple
+PRs welcome! Keep it simple:
+- No new dependencies
+- Under 500 total lines
+- Must work with just `python3`
 
-Use Agent Bridge for simple coordination. Use Agent Mail for production swarms.
+---
 
 ## License
 
-MIT
+MIT — Use it however you want.
+
+---
+
+<p align="center">
+  <sub>Built for developers who believe the best tool is the simplest one that works.</sub>
+</p>
